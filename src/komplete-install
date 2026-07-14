@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+# SPDX-FileCopyrightText: 2026 Hadi Chokr <hadichokr@icloud.com>
+
+"""
+
+Usage: komplete-install <config-name>
+
+"""
+
+import configparser
+import gettext
+import os
+import re
+import shlex
+import subprocess
+import sys
+
+from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
+from PySide6.QtCore import QProcess, QObject, Signal
+
+gettext.install("komplete")
+_ = gettext.gettext
+
+CONFIG_DIR = "/usr/share/komplete"
+
+
+class Config:
+    """Parsed komplete config file."""
+
+    def __init__(self, name: str):
+        path = os.path.join(CONFIG_DIR, f"{name}.conf")
+        if not os.path.isfile(path):
+            sys.exit(f"komplete-install: no such config: {path}")
+
+        parser = configparser.ConfigParser()
+        parser.read(path)
+
+        app = parser["App"]
+        self.app_id = app["Id"]
+        # what the user sees
+        self.display_name = app.get("Name", self.app_id)
+        self.icon = app.get("Icon", "application-x-executable")
+
+        remote = parser["Remote"]
+        self.remote_name = remote["Name"]
+        self.remote_url = remote["Url"]
+
+        install = parser["Install"] if parser.has_section("Install") else {}
+        self.post_install = install.get("PostInstall", "")
+
+
+def flatpak_installed(config: Config) -> bool:
+    result = subprocess.run(
+        ["flatpak", "list", "--app", "--user", "--columns=application"],
+        capture_output=True,
+        text=True,
+    )
+    return config.app_id in result.stdout.split()
+
+
+def notify(config: Config, summary: str, body: str):
+    subprocess.run([
+        "notify-send",
+        "-a", config.display_name,
+        "-i", config.icon,
+        summary, body,
+    ])
+
+
+def ask_user(config: Config) -> bool:
+    msg = QMessageBox()
+    msg.setWindowTitle(_("%s Required") % config.display_name)
+    msg.setText(
+        _("This file requires %s, but it is not installed.\n\n"
+          "Download and install it now?") % config.display_name
+    )
+    msg.setIcon(QMessageBox.Question)
+    msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+    return msg.exec() == QMessageBox.Yes
+
+
+def add_remote(config: Config):
+    subprocess.run([
+        "flatpak", "remote-add", "--if-not-exists", "--user",
+        config.remote_name, config.remote_url,
+    ], check=True)
+
+
+def run_post_install(config: Config):
+    """Refresh the desktop database and run the optional post-install hook."""
+    home = os.environ.get("HOME", "")
+    exports = os.path.join(home, ".local/share/flatpak/exports/share/applications/")
+    subprocess.run(["update-desktop-database", exports], check=False)
+    if config.post_install:
+        subprocess.run(shlex.split(config.post_install), check=False)
+
+
+class FlatpakInstaller(QObject):
+    """Flatpak installation process with progress reporting."""
+
+    progress_updated = Signal(int)
+    finished = Signal(bool)
+
+    def __init__(self, config: Config):
+        super().__init__()
+        self.config = config
+        self.process = QProcess()
+        self.process.readyReadStandardOutput.connect(self._handle_stdout)
+        self.process.finished.connect(self._on_finished)
+
+    def start(self):
+        self.process.start(
+            "flatpak", ["install", "--user", self.config.app_id, "--assumeyes"]
+        )
+
+    def _handle_stdout(self):
+        data = self.process.readAllStandardOutput().data().decode()
+        for line in data.splitlines():
+            match = re.search(r"\b(\d+)%", line)
+            if match:
+                self.progress_updated.emit(int(match.group(1)))
+
+    def _on_finished(self, exit_code, exit_status):
+        self.finished.emit(exit_code == 0 and exit_status == QProcess.NormalExit)
+
+
+def install_with_progress_dialog(config: Config, parent=None) -> bool:
+    dialog = QProgressDialog(
+        _("Installing %s...") % config.display_name, _("Cancel"),
+        0, 100, parent,
+    )
+    dialog.setWindowTitle(config.display_name)
+    dialog.setMinimumDuration(0)
+    dialog.setAutoClose(True)
+    dialog.setAutoReset(True)
+
+    installer = FlatpakInstaller(config)
+    installer.progress_updated.connect(dialog.setValue)
+    installer.finished.connect(dialog.cancel)
+    dialog.canceled.connect(installer.process.kill)
+
+    installer.start()
+    dialog.exec()
+
+    installer.process.waitForFinished(-1)
+    return (installer.process.exitCode() == 0
+            and installer.process.exitStatus() == QProcess.NormalExit)
+
+
+def main():
+    if len(sys.argv) != 2:
+        sys.exit("Usage: komplete-install <config-name>")
+
+    config = Config(sys.argv[1])
+
+    if flatpak_installed(config):
+        notify(config, config.display_name,
+               _("%s is already installed and ready to use.") % config.display_name)
+        run_post_install(config)
+        return
+
+    app = QApplication.instance() or QApplication(sys.argv)
+
+    if not ask_user(config):
+        sys.exit(1)  # user cancelled -> must not continue
+
+    add_remote(config)
+
+    if install_with_progress_dialog(config):
+        notify(config, _("%s Ready") % config.display_name,
+               _("Installation complete."))
+        run_post_install(config)
+    else:
+        QMessageBox.critical(
+            None, _("Installation Failed"),
+            _("The installation of %s was cancelled or failed.") % config.display_name,
+        )
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

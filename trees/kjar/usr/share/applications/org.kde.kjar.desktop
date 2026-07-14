@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Java Support
+Comment=Open this file type with Java Support
+Exec=java -jar %f
+Icon=application-x-java-archive
+Terminal=false
+Type=Application
+NoDisplay=true
+MimeType=application/java-archive;
+Categories=Development;

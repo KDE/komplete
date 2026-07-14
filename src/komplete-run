@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+# SPDX-FileCopyrightText: 2026 Hadi Chokr <hadichokr@icloud.com>
+#
+# komplete launcher
+#
+# Usage: komplete-run <config-name> [command] [args...]
+#
+
+
+set -euo pipefail
+
+CONFIG_NAME="${1:?Usage: komplete-run <config-name> [command] [args...]}"
+shift
+
+CONFIG_FILE="/usr/share/komplete/${CONFIG_NAME}.conf"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "komplete-run: no such config: $CONFIG_FILE" >&2
+    exit 1
+fi
+
+# Read Id= from the [App] section (first match wins).
+APP_ID=$(sed -n 's/^Id[[:space:]]*=[[:space:]]*//p' "$CONFIG_FILE" | head -n1)
+if [[ -z "$APP_ID" ]]; then
+    echo "komplete-run: config $CONFIG_FILE has no App Id" >&2
+    exit 1
+fi
+
+# Cheap installed-check via the exported desktop entry; falls back to the
+# graphical installer, which does the authoritative check itself.
+if [[ ! -f ~/.local/share/flatpak/exports/share/applications/"$APP_ID".desktop ]]; then
+    /usr/lib/komplete/komplete-install "$CONFIG_NAME"
+fi
+
+exec flatpak run "$APP_ID" "$@"
