@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL
+# SPDX-FileCopyrightText: 2026 Hadi Chokr <hadichokr@icloud.com>
+
+[package]
+name = "komplete-install"
+version = "1.0.0"
+authors = [ "Hadi Chokr <hadichokr@icloud.com>" ]
+edition = "2021"
+license = "GPL-2.0-only OR GPL-3.0-only OR LicenseRef-KDE-Accepted-GPL"
+description = "Graphical Flatpak installer for komplete integration trees"
+
+[dependencies]
+anyhow = "1"
+gettext-rs = { version = "0.7", features = ["gettext-system"] }
+rust-ini = "0.21"
+shlex = "1"
+cxx = "1.0.192"
+cxx-qt = "0.8"
+cxx-qt-lib = { version = "0.8", features = ["qt_full"] }
+cxx-qt-lib-extras = "0.8"
+cxx-kde-frameworks = { git = "https://invent.kde.org/libraries/cxx-kde-frameworks.git" }
+
+[build-dependencies]
+cxx-qt-build = { version = "0.8", features = [ "link_qt_object_files" ] }
+
+[profile.release]
+lto = true
+strip = true
