@@ -13,10 +13,37 @@ if(NOT CMAKE_INSTALL_PREFIX STREQUAL "/usr")
         "absolute /usr paths. Use DESTDIR for staged installs.")
 endif()
 
+find_program(CARGO_EXECUTABLE cargo REQUIRED)
+
+set(KOMPLETE_CARGO_DIR ${CMAKE_CURRENT_BINARY_DIR}/cargo)
+set(_cargo_profile_dir debug)
+set(_cargo_options "")
+if(CMAKE_BUILD_TYPE STREQUAL "Release"
+        OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel"
+        OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    set(_cargo_options --release)
+    set(_cargo_profile_dir release)
+endif()
+
+set(_komplete_install_bin ${KOMPLETE_CARGO_DIR}/${_cargo_profile_dir}/komplete-install)
+
+add_custom_target(komplete-install ALL
+    COMMAND ${CARGO_EXECUTABLE} build ${_cargo_options}
+            --manifest-path ${CMAKE_CURRENT_SOURCE_DIR}/src/komplete-install/Cargo.toml
+            --target-dir ${KOMPLETE_CARGO_DIR}
+    BYPRODUCTS ${_komplete_install_bin}
+    COMMENT "Building komplete-install with cargo"
+    VERBATIM
+)
+
 install(PROGRAMS
-    src/komplete-install
+    ${_komplete_install_bin}
     src/komplete-run
     DESTINATION lib/komplete
+)
+
+install(FILES src/komplete-install/org.kde.komplete_install.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
 )
 
 # Project trees

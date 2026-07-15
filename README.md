@@ -7,24 +7,21 @@ SPDX-License-Identifier: CC0-1.0
 ## Layout
 
 ```
-src/komplete-run       # launcher (bash)
-src/komplete-install   # GUI installer
-trees/<name>/usr/...   # one integration per directory
-tools/new-tree.sh      # scaffolding for new trees
+src/komplete-run              # launcher (bash)
+src/komplete-install/         # GUI installer (Rust + Kirigami)
+    src/main.rs               #   entry point, CLI fast path, QML engine
+    src/config.rs             #   config parsing, flatpak helpers, notifications
+    src/installer.rs          #   Installer QObject exposed to QML
+    src/qml/Main.qml          #   Kirigami UI
+trees/<name>/usr/...          # one integration per directory
+tools/new-tree.sh             # scaffolding for new trees
 ```
 
 ## Build & install
 
 ```bash
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 sudo cmake --install build
 ```
-
-All trees are installed by default; select with `-DKOMPLETE_TREES="kjar;wine"`.
-Result: shims in `/usr/bin`, framework in `/usr/lib/komplete`, configs in
-`/usr/share/komplete`, desktop files and binfmt rules in their usual places.
-
-Runtime dependencies: `flatpak`, `pyside6`, `libnotify`,
-`desktop-file-utils`.
 

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=komplete Installer
+Comment=Installs the Flatpak an integrated command or file type needs
+Exec=/usr/lib/komplete/komplete-install
+Icon=install
+Terminal=false
+Type=Application
+NoDisplay=true
+Categories=System;
