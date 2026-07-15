@@ -17,8 +17,12 @@ use gettextrs::{bindtextdomain, setlocale, textdomain, LocaleCategory};
 fn main() {
     setlocale(LocaleCategory::LcAll, "");
     // Like the rest of komplete, the runtime is expected to live under /usr.
-    let _ = bindtextdomain("komplete", "/usr/share/locale");
-    let _ = textdomain("komplete");
+    if let Err(err) = bindtextdomain("komplete", "/usr/share/locale") {
+        eprintln!("komplete-install: bindtextdomain failed: {err}");
+    }
+    if let Err(err) = textdomain("komplete") {
+        eprintln!("komplete-install: textdomain failed: {err}");
+    }
 
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
